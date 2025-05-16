@@ -1,0 +1,90 @@
+# Project Report: Ethereum Transaction Fraud Detector
+
+## Project Overview
+
+### Project Name:
+Ethereum Transaction Fraud Detector
+
+### Project Description:
+The Ethereum Transaction Fraud Detector is a robust and efficient system designed to detect fraudulent activities within Ethereum blockchain transactions. By leveraging advanced machine learning techniques, particularly unsupervised learning models, the project aims to identify and flag suspicious transactions to mitigate fraud risk.
+
+## Objectives
+- To analyze Ethereum transaction data for signs of fraud.
+- To implement a machine learning model capable of detecting anomalous transactions based on multiple features.
+- To provide a user-friendly frontend that allows users to input transaction details and receive real-time fraud assessments.
+
+## Key Milestones
+
+1. **Data Acquisition**: 
+   - Successfully retrieved Ethereum transaction data from Google Cloud.
+  
+2. **Model Development**:
+   - Data preprocessing and feature engineering were conducted using Google Colab.
+   - An unsupervised learning model was built with Isolation Forest and PCA techniques to identify anomalies in transaction behavior.
+
+3. **Model Training and Evaluation**:
+   - The Isolation Forest model was trained with normalized features and evaluated using metrics such as the Silhouette Score.
+   - The model was further refined to enhance detection accuracy.
+
+4. **Explainability**:
+   - Implemented SHAP (SHapley Additive exPlanations) to interpret model predictions and understand the significance of different features contributing to fraud detection.
+
+5. **Frontend Integration**:
+   - Developed a user-friendly interface where users can input transaction data and receive feedback on whether the transaction is normal or suspicious, alongside anomaly scores and confidence levels.
+
+6. **Deployment and Data Visualization**:
+   - Included functionalities to visualize transaction statistics and trends, providing insights into overall transaction behavior.
+
+## Methodology
+
+### Data Processing
+- **Loading Data**: The dataset was loaded from an Excel file containing Ethereum transaction records.
+- **Feature Engineering**: 
+  - Derived multiple features, including transaction count, ETH value, gas price, and unique addresses interacted with.
+  - Key calculated metrics included transaction frequency, average time between transactions, and gas price volatility.
+
+### Model Implementation
+- **Isolation Forest Model**:
+  - Utilized the Isolation Forest algorithm with 200 estimators and a contamination factor of 0.05 to train the model.
+  - Predictions were generated to label transactions as fraudulent (-1) or normal (1).
+
+- **Performance Metrics**:
+  - Evaluated model performance using the Silhouette Score to examine clustering quality, with an average score noted through testing.
+
+### Explainability with SHAP
+- Implemented SHAP to explain the model's predictions, which provides valuable insights into feature importance that can guide further improvements.
+
+### Visualization
+- Histograms and summary statistics were generated to visualize the distribution of anomaly scores among normal and fraudulent transactions.
+
+## Outcomes
+
+### Model Performance
+- **Suspicious Transactions**: The model identified a total number of suspicious transactions with the results showing variability based on updating thresholds.
+- **Anomaly Scores**: Significant fraction of transactions were flagged, demonstrating the model's capability in highlighting potential fraud.
+
+### User Interface
+- The frontend displays:
+  - Input fields for "From Address," "To Address," "ETH Value," and "Gas Price."
+  - Output indicating transaction status (normal or suspicious) along with anomaly scores and confidence levels.
+  - Visual representation of ETH value trends and summary statistics for all transactions.
+
+## Conclusion
+The Ethereum Transaction Fraud Detector project successfully integrated various machine learning techniques to create an effective tool for identifying fraudulent transactions in the Ethereum blockchain. The model's ability to analyze transaction patterns and flag anomalies contributes significantly to enhancing security in blockchain transactions. Future work may focus on continuous model improvements and real-time monitoring capabilities.
+
+## Future Work
+1. **Model Optimization**: Explore further hyperparameter tuning and consider additional algorithms to improve detection rates.
+2. **Real-time Monitoring**: Develop capabilities for real-time transaction monitoring and alerts for suspicious activities.
+3. **User Feedback Loop**: Implement a feedback mechanism to collect user insights on the system’s effectiveness, facilitating continuous improvement.
+
+## Appendix
+
+### Code Snippet Summary
+The code snippet provided demonstrates the workflow for data loading, preprocessing, model training, evaluation, and result visualization. Key libraries utilized include pandas, NumPy, and scikit-learn, along with SHAP for model explainability.
+
+### Downloads
+- The trained model and scaler were saved as `fraud_detection_model.pkl` and `scaler.pkl`, respectively, and can be downloaded for deployment in production environments. 
+
+--- 
+
+This comprehensive report encapsulates the objectives, methodologies, outcomes, and future directions of the Ethereum Transaction Fraud Detector project, establishing it as a significant contribution to fraud detection in blockchain technology.

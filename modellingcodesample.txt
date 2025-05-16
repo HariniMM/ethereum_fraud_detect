@@ -1,0 +1,166 @@
+import pandas as pd
+import numpy as np
+import shap
+
+# Ensure LIME is installed
+try:
+    import lime
+    import lime.lime_tabular
+except ImportError:
+    !pip install lime
+    import lime
+    import lime.lime_tabular
+
+from sklearn.ensemble import IsolationForest
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import silhouette_score
+
+# Load dataset (replace with actual file path or GCS link)
+df = pd.read_excel("ethereum_transactions.xlsx")
+
+# Convert timestamp to datetime format
+df['block_timestamp'] = pd.to_datetime(df['block_timestamp'])
+
+# Feature Engineering
+df['transaction_count'] = df.groupby('from_address')['from_address'].transform('count')
+df['value_eth'] = df['value'].astype(float) / 1e18  # Convert Wei to ETH
+df['gas_price_eth'] = df['gas_price'].astype(float) / 1e18  # Convert gas price to ETH
+
+df['unique_addresses_interacted'] = df.groupby('from_address')['to_address'].transform('nunique')
+df['average_transaction_value'] = df.groupby('from_address')['value_eth'].transform('mean')
+
+df['median_gas_price'] = df.groupby('from_address')['gas_price_eth'].transform('median')
+df['repeated_to_addresses'] = df.groupby(['from_address', 'to_address'])['to_address'].transform('count')
+df['incoming_outgoing_ratio'] = df.groupby('to_address')['from_address'].transform('count') / (df.groupby('from_address')['to_address'].transform('count') + 1)
+
+df['transaction_frequency'] = df.groupby('from_address')['from_address'].transform('count') / (
+    (df['block_timestamp'].max() - df['block_timestamp'].min()).days + 1
+)
+
+# Compute time difference before using transform
+df['time_diff'] = df.groupby('from_address')['block_timestamp'].diff().dt.total_seconds()
+df['average_time_between_transactions'] = df.groupby('from_address')['time_diff'].transform('mean').fillna(0)
+
+df['gas_price_volatility'] = df.groupby('from_address')['gas_price_eth'].transform('std').fillna(0)
+
+# Selecting Features
+features = ['value_eth', 'gas_price_eth', 'transaction_count', 'unique_addresses_interacted', 'average_transaction_value', 'gas_price_volatility', 'median_gas_price', 'repeated_to_addresses', 'incoming_outgoing_ratio', 'transaction_frequency', 'average_time_between_transactions']
+X = df[features]
+
+# Handle NaNs in features before model training
+X = X.fillna(X.mean())
+
+# Normalize features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
+
+# Train Isolation Forest Model with more estimators
+model = IsolationForest(n_estimators=200, contamination=0.05, random_state=42)
+model.fit(X_scaled)
+df['anomaly_score'] = model.decision_function(X_scaled)
+df['fraud_prediction'] = model.predict(X_scaled)  # -1 means fraud, 1 means normal
+
+# Extract suspicious transactions
+suspicious_transactions = df[df['fraud_prediction'] == -1]
+
+print("Number of suspicious transactions detected:", len(suspicious_transactions))
+print(suspicious_transactions[['from_address', 'to_address', 'value_eth', 'gas_price_eth', 'transaction_count']])
+
+# Compute Silhouette Score
+silhouette_avg = silhouette_score(X_scaled, df['fraud_prediction'])
+print("Silhouette Score:", silhouette_avg)
+
+# Model Performance Report
+print("\nModel Performance Report")
+print("--------------------------")
+print(f"Total Transactions: {len(df)}")
+print(f"Fraudulent Transactions: {len(suspicious_transactions)}")
+print(f"Silhouette Score: {silhouette_avg:.4f}")
+print(f"Mean Anomaly Score: {df['anomaly_score'].mean():.4f}")
+print(f"Std Dev of Anomaly Score: {df['anomaly_score'].std():.4f}")
+
+# SHAP Explainability
+explainer = shap.Explainer(model, X_scaled)
+shap_values = explainer(X_scaled)
+shap_summary = pd.DataFrame(list(zip(features, np.abs(shap_values.values).mean(axis=0))), columns=["Feature", "Mean SHAP Value"])
+shap_summary = shap_summary.sort_values(by="Mean SHAP Value", ascending=False)
+print("\nFeature Importance (SHAP Values):")
+print(shap_summary)
+
+from sklearn.model_selection import train_test_split
+
+X_train, X_test = train_test_split(X_scaled, test_size=0.2, random_state=42)
+model.fit(X_train)
+test_predictions = model.predict(X_test)
+
+print("Fraud Count in Test Data:", sum(test_predictions == -1))
+print("Normal Count in Test Data:", sum(test_predictions == 1))
+import matplotlib.pyplot as plt
+
+df_test = pd.DataFrame({"anomaly_score": model.decision_function(X_test), "fraud_prediction": test_predictions})
+df_test[df_test['fraud_prediction'] == -1]['anomaly_score'].hist(bins=50, alpha=0.7, label="Fraud")
+df_test[df_test['fraud_prediction'] == 1]['anomaly_score'].hist(bins=50, alpha=0.7, label="Normal")
+plt.xlabel("Anomaly Score")
+plt.ylabel("Frequency")
+plt.legend()
+plt.show()
+print(df_test[df_test['fraud_prediction'] == -1].describe())
+df_normal = df_test[df_test['fraud_prediction'] == 1]
+print(df_normal['anomaly_score'].describe())
+model = IsolationForest(n_estimators=300, contamination=0.02, random_state=42)
+model.fit(X_train)
+test_predictions = model.predict(X_test)
+print("New Fraud Count in Test Data:", sum(test_predictions == -1))
+borderline_normals = df_test[(df_test['anomaly_score'] > -0.01) & (df_test['anomaly_score'] < 0.01)]
+print(borderline_normals)
+new_fraud_cases = df_test[df_test['anomaly_score'] < -0.002]
+print("New Fraud Cases:", len(new_fraud_cases))
+new_threshold = -0.002  # Updated threshold
+
+# Apply new threshold to classify fraud cases
+df['fraud_prediction'] = df['anomaly_score'].apply(lambda x: -1 if x < new_threshold else 1)
+
+# Count fraud cases after the update
+new_fraud_cases = df[df['fraud_prediction'] == -1]
+print("New Fraud Cases:", len(new_fraud_cases))
+# Compute Silhouette Score
+from sklearn.metrics import silhouette_score
+
+silhouette_avg = silhouette_score(X_scaled, df['fraud_prediction'])
+print("Updated Silhouette Score:", silhouette_avg)
+
+# Recalculate Anomaly Score Statistics
+print("\nUpdated Anomaly Score Distribution (Fraud Cases):")
+print(new_fraud_cases['anomaly_score'].describe())
+
+# Count normal transactions
+normal_cases = df[df['fraud_prediction'] == 1]
+print("\nUpdated Anomaly Score Distribution (Normal Cases):")
+print(normal_cases['anomaly_score'].describe())
+
+# Compute Updated Silhouette Score
+silhouette_avg = silhouette_score(X_scaled, df['fraud_prediction'])
+print("Updated Silhouette Score:", silhouette_avg)
+
+# Recalculate Anomaly Score Statistics
+print("\nUpdated Anomaly Score Distribution (Fraud Cases):")
+print(new_fraud_cases['anomaly_score'].describe())
+
+# Count normal transactions
+normal_cases = df[df['fraud_prediction'] == 1]
+print("\nUpdated Anomaly Score Distribution (Normal Cases):")
+print(normal_cases['anomaly_score'].describe())
+
+import joblib
+
+# Save the trained model
+joblib.dump(model, 'fraud_detection_model.pkl')
+
+# Save the scaler used for feature normalization
+joblib.dump(scaler, 'scaler.pkl')
+
+# Download them to your local machine
+from google.colab import files
+files.download('fraud_detection_model.pkl')
+files.download('scaler.pkl')
+
